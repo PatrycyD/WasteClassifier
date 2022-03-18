@@ -6,13 +6,13 @@ import pathlib
 
 def read_to_loader(batch_size: int=10):
 
-    train_path = pathlib.Path(__file__).parent.parent.resolve().joinpath(
+    train_path = pathlib.Path(__file__).parents[2].resolve().joinpath(
                                                                         'Data',
                                                                         'TrashNet',
-                                                                        'splitted_images',
+                                                                        'split_images',
                                                                         'train')
 
-    test_path = train_path.replace('train', 'test')
+    test_path = str(train_path).replace('train', 'test')
 
     train_transform = transforms.Compose([
         transforms.RandomRotation(10),
@@ -36,7 +36,7 @@ def read_to_loader(batch_size: int=10):
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
 
-    return train_loader, test_loader
+    return train_data, test_data, train_loader, test_loader
 
 
 if __name__ == '__main__':

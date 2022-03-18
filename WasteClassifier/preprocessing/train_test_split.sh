@@ -1,28 +1,32 @@
-ROOT_PATH=$(python -c 'import preprocessing.config as config; print(config.ROOT_PATH)' | sed 's/\\/\//g' | sed 's/://')
-ROOT_PATH="/${ROOT_PATH}"
+#!/bin/bash
 
-RESIZED_PATH=$(python -c 'import preprocessing.config as config; print(config.RESIZED_PATH)' | sed 's/\\/\//g' | sed 's/://')
-RESIZED_PATH="/${RESIZED_PATH}"
+source /home/peprycy/WasteClassifier/WasteClassifier/preprocessing/config.cfg
 
-SPLITTED_IMAGES_PATH=$(python -c 'import preprocessing.config as config; print(config.SPLITTED_IMAGES_PATH)' | sed 's/\\/\//g' | sed 's/://')
-SPLITTED_IMAGES_PATH="/${SPLITTED_IMAGES_PATH}"
+#ROOT_PATH=$(python -c 'import preprocessing.config as config; print(config.ROOT_PATH)' | sed 's/\\/\//g' | sed 's/://')
+#ROOT_PATH="/${ROOT_PATH}" #???
+#
+#RESIZED_PATH=$(python -c 'import preprocessing.config as config; print(config.RESIZED_PATH)' | sed 's/\\/\//g' | sed 's/://')
+#RESIZED_PATH="/${RESIZED_PATH}"
+#
+#SPLIT_IMAGES_PATH=$(python -c 'import preprocessing.config as config; print(config.SPLITTED_IMAGES_PATH)' | sed 's/\\/\//g' | sed 's/://')
+#SPLIT_IMAGES_PATH="/${SPLITTED_IMAGES_PATH}"
 
-TEST_PATH="$SPLITTED_IMAGES_PATH/test"
-TRAIN_PATH="$SPLITTED_IMAGES_PATH/train"
+TEST_PATH="$SPLIT_IMAGES_PATH/test"
+TRAIN_PATH="$SPLIT_IMAGES_PATH/train"
 
-TEST_PERCENT=$(python -c 'import preprocessing.config as config; print(config.TEST_PERCENT)')
+#TEST_PERCENT=$(python -c 'import preprocessing.config as config; print(config.TEST_PERCENT)')
 
 function main(){
-  if [[ -d "$SPLITTED_IMAGES_PATH" ]]
+  if [[ -d "$SPLIT_IMAGES_PATH" ]]
   then
-    rm -rf "$SPLITTED_IMAGES_PATH"
+    rm -rf "$SPLIT_IMAGES_PATH"
   fi
   mkdir -p "$TRAIN_PATH"
   mkdir "$TEST_PATH"
 
   for category in "$RESIZED_PATH"/*
   do
-    category_name=$(echo $category | sed 's|.*\/||g')
+    category_name=$(echo "$category" | sed 's|.*\/||g')
     category_test_path="${TEST_PATH}/$category_name"
     category_train_path="${TRAIN_PATH}/$category_name"
     mkdir "${category_test_path}"
@@ -35,6 +39,7 @@ function main(){
 
     for img in "$category"/*
     do
+#      echo $img
       if [[ $test_indexes = *" $i "* ]]
       then
         cp "$img" "$category_test_path"
