@@ -8,6 +8,8 @@ setup(
         'torch',
         'torchvision',
         'pandas',
-        'numpy'
+        'numpy',
+        'matplotlib',
+        'ignite'
     ]
 )
