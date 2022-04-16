@@ -1,6 +1,0 @@
-setup.py
-WasteClassifier.egg-info/PKG-INFO
-WasteClassifier.egg-info/SOURCES.txt
-WasteClassifier.egg-info/dependency_links.txt
-WasteClassifier.egg-info/requires.txt
-WasteClassifier.egg-info/top_level.txt
