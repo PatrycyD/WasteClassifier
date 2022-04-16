@@ -2,64 +2,57 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import numpy as np
+import os
+import WasteClassifier.config as config
 
 
-def read_to_loader(train_path: str, test_path: str = None,
-                   batch_size: int = 10, first_n_photos: int = 0, manual_seed: int = 42):
+class DataManager:
 
-    train_transform = transforms.Compose([
-        transforms.RandomRotation(10),
-        transforms.RandomHorizontalFlip(),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
+    def __init__(self, data_path, transform_type: str = 'test', batch_size: int = 10):
+        self.data_path = data_path
+        self.batch_size = batch_size
+        self.num_of_classes = None
 
-    test_transform = transforms.Compose([
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-    train_data = datasets.ImageFolder(train_path, transform=train_transform)
-    test_data = datasets.ImageFolder(test_path, transform=test_transform)
+        if transform_type == 'test':
+            self.transform = transforms.Compose([
+                                                transforms.CenterCrop(224),
+                                                transforms.ToTensor(),
+                                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                                                ])
+        else:
+            self.transform = transforms.Compose([
+                                                transforms.RandomRotation(10),
+                                                transforms.RandomHorizontalFlip(),
+                                                transforms.CenterCrop(224),
+                                                transforms.ToTensor(),
+                                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                                                ])
 
-    torch.manual_seed(manual_seed)
+    def return_dataset_and_loader(self, manual_seed: int = 42, return_loader: bool = True, shuffle: bool = True):
 
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
+        data = datasets.ImageFolder(self.data_path, transform=self.transform)
 
-    if first_n_photos != 0:
-        sample_loader = []
-        train_loader_iter = iter(train_loader)
+        torch.manual_seed(manual_seed)
+        if return_loader:
+            loader = DataLoader(data, batch_size=self.batch_size, shuffle=shuffle)
+            return loader, data
 
-        for n in range(first_n_photos):
-            sample_loader.append(next(train_loader_iter))
-        # print(type(DataLoader(sample_loader)))
-        return DataLoader(sample_loader), sample_loader
+        return data
 
-    return train_data, test_data, train_loader, test_loader
+    def return_dataset_and_laoder_of_n_photos(self, n: int, display_photos: bool = True, shuffle: bool = True):
 
+        data = datasets.ImageFolder(self.data_path, transform=self.transform)
+        data = torch.utils.data.Subset(data, np.random.choice(len(data), n))
 
-def get_number_of_classes(train_data_path):
+        loader = DataLoader(data, self.batch_size, shuffle=shuffle)
 
-    data = datasets.ImageFolder(train_data_path)
+        return data, loader
 
-    return len(data.classes)
+    def get_number_of_classes(self):
+        num_of_classes = len(next(os.walk(self.data_path))[1])
+        self.num_of_classes = num_of_classes
 
-
-def read_to_loader_n_photos(data_path, n):
-    test_transform = transforms.Compose([
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-
-    data = datasets.ImageFolder(data_path, transform=test_transform)
-    data = torch.utils.data.Subset(data, np.random.choice(len(data), n))
-
-    loader = DataLoader(data)
-
-    return data, loader
+        return num_of_classes
 
 
 if __name__ == '__main__':

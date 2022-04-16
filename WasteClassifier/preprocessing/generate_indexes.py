@@ -1,6 +1,6 @@
 import numpy
 import sys
-import config
+import WasteClassifier.config as config
 
 files_in_folder = sys.argv[1]
 

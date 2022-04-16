@@ -1,7 +1,7 @@
-WasteClassifier/Data
-WasteClassifier/venv
-WasteClassifier/__pycache__
-WasteClassifier/dist
-WasteClassifier/build
-WasteClassifier/.idea
-WasteClassifier/WasteClassifier.egg-info
+Data
+venv
+__pycache__
+dist
+build
+.idea
+WasteClassifier.egg-info

@@ -10,6 +10,7 @@ setup(
         'pandas',
         'numpy',
         'matplotlib',
-        'ignite'
+        'ignite',
+        'opencv-python'
     ]
 )

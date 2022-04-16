@@ -1,8 +1,8 @@
 import torch
 import network
-import config
-from WasteClassifier.preprocessing.images_preprocessing import read_to_loader, get_number_of_classes
-import pathlib
+import WasteClassifier.config as config
+from WasteClassifier.preprocessing.images_preprocessing import DataManager
+import os
 
 
 class Trainer:
@@ -11,40 +11,36 @@ class Trainer:
         self.train_path = train_path
         self.test_path = test_path
         self.batch_size = batch_size
+
+        self.total_photos_num = 0
+        for directory in os.listdir(train_path):
+            self.total_photos_num += len(next(os.walk(f'{train_path}/{directory}'))[2])
+
         self.train_data = None
         self.test_data = None
         self.train_loader = None
         self.test_loader = None
         self.sample_loader = None
         self.sample_data = None
+        self.num_of_classes = None
         self.classes = None
-
-    # def get_num_of_classes(self):
-    #     assert self.train_data is not None, 'train loader should be defined earlier'
-    #
-    #     return len(self.train_data.classes)
 
     def get_data_loaders(self, data_sample: int = 0):
 
-        if data_sample == 0 or data_sample is None:
-            train_data, test_data, train_loader, test_loader = read_to_loader(self.train_path,
-                                                                              self.test_path, self.batch_size)
+        train_manager = DataManager(self.train_path, transform_type='train', batch_size=self.batch_size)
+        train_loader, train_data = train_manager.return_dataset_and_loader()
+        self.num_of_classes = train_manager.get_number_of_classes()
 
-            self.train_data = train_data
-            self.test_data = test_data
-            self.train_loader = train_loader
-            self.test_loader = test_loader
-            self.classes = train_data.classes
+        test_manager = DataManager(self.test_path, transform_type='test', batch_size=self.batch_size)
+        test_loader, test_data = test_manager.return_dataset_and_loader()
 
-            return train_data, test_data, train_loader, test_loader
+        self.train_data = train_data
+        self.test_data = test_data
+        self.train_loader = train_loader
+        self.test_loader = test_loader
+        self.classes = train_data.classes
 
-        else:
-            sample_loader, sample_data = read_to_loader(self.train_path, batch_size=config.batch_size, first_n_photos=3)
-            self.sample_loader = sample_loader
-            self.sample_data = sample_data
-            self.classes = sample_data.classes
-
-            return sample_loader, sample_data
+        return train_data, test_data, train_loader, test_loader
 
     def train(self, model, criterion, optimizer, epochs=config.epochs, count_time=False, verbose=False):
 
@@ -53,6 +49,7 @@ class Trainer:
             start_time = time.time()
 
         epochs = epochs
+        print(epochs)
         max_trn_batch = 800
         max_tst_batch = 300
         train_losses = []
@@ -89,8 +86,9 @@ class Trainer:
 
                 # Print interim results
                 if b % 75 == 0:
-                    print(f'epoch: {i:2}  batch: {b:4} [{10 * b:6}/...]  loss: {loss.item():10.8f}  \
-        accuracy: {trn_corr.item() * 100 / (self.batch_size * b):7.3f}%')
+                    print(f'epoch: {i+1:2}  batch: {b:4} [{self.batch_size * b:6}/{self.total_photos_num}]  \
+                    loss: {loss.item():10.8f}  \
+                    accuracy: {trn_corr.item() * 100 / (self.batch_size * b):7.3f}%')
 
             train_losses.append(loss)
             train_correct.append(trn_corr)
@@ -122,18 +120,14 @@ class Trainer:
 
 def main(save_model_path=None):
 
-    # trashnet_train_path = pathlib.Path(__file__).parents[2].resolve().joinpath(
-    #     'Data', 'TrashNet', 'split_images', 'train'
-    # )
-    trashnet_train_path = f'{config.trashnet_path}/train'
-    trashnet_test_path = f'{config.trashnet_path}/test'
-    # transhet_test_path = str(trashnet_train_path).replace('train', 'test')
-    num_classes = get_number_of_classes(trashnet_train_path)
+    train_path = f'{config.split_images_path}/train'
+    test_path = f'{config.split_images_path}/test'
 
-    model = network.ConvolutionalNetwork(num_classes)
-
-    trainer = Trainer(trashnet_train_path, trashnet_test_path, config.batch_size)
+    trainer = Trainer(train_path, test_path, config.batch_size)
     trainer.get_data_loaders()
+
+    model = network.ConvolutionalNetwork(trainer.num_of_classes)
+    # model.add_classes(trainer.train_data)
 
     criterion = eval(config.loss_function)
     optimizer = eval(config.optimizer)
@@ -141,9 +135,6 @@ def main(save_model_path=None):
 
     if save_model_path is not None:
         torch.save(model.state_dict(), save_model_path)
-
-    # if perform_test:
-    #     sample_loader, sample_data = trainer.get_data_loaders()
 
 
 if __name__ == '__main__':
