@@ -1,0 +1,23 @@
+ROOT_PATH = '/home/peprycy/WasteClassifier/Data'
+TRANSHET_PATH = f'${ROOT_PATH}/TrashNet'
+TRASHNET_RESIZED_PATH = f"{TRANSHET_PATH}/dataset-resized"
+ORGANIC_PATH = f"{ROOT_PATH}/organic"
+TRASHBOX_PATH = f"${ROOT_PATH}/TrashBox"
+SPLIT_IMAGES_PATH = f"{ROOT_PATH}/split_images"
+CUSTOM_PHOTOS_PATH = f'{ROOT_PATH}/custom_images'
+CUSTOM_PHOTOS_RESIZED_PATH = f'{ROOT_PATH}/custom_images_resized'
+TEST_PERCENT = 0.3
+PHOTO_WIDTH = 512
+PHOTO_HEIGHT = 384
+project_root_path = '/home/peprycy/WasteClassifier'
+epochs = 1
+optimizer = 'torch.optim.Adam(model.parameters(), lr=0.001)'
+loss_function = 'torch.nn.CrossEntropyLoss()'
+batch_size = 10
+model_pickle_path = f'{project_root_path}/WasteClassifier/model/model.pickle'
+split_images_path = f'{project_root_path}/Data/split_images'
+custom_photos_path = f'{project_root_path}/Data/custom_images'
+resized_custom_photos_path = f'{project_root_path}/Data/custom_images_resized'
+classes = ['cardboard', 'glass', 'metal', 'organic', 'plastic']  # nobody ever died from a little of hardcoding, gonna fix it later
+classes_dict = {0: 'cardboard', 1: 'glass', 2: 'metal', 3: 'organic', 4: 'plastic'}  # same here
+# classes_dict = {'cardboard': 1, 'glass': 2, 'metal': 3, 'organic': 4, 'plastic': 5}

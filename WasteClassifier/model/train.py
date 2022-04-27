@@ -49,7 +49,6 @@ class Trainer:
             start_time = time.time()
 
         epochs = epochs
-        print(epochs)
         max_trn_batch = 800
         max_tst_batch = 300
         train_losses = []
@@ -123,7 +122,7 @@ def main(save_model_path=None):
     train_path = f'{config.split_images_path}/train'
     test_path = f'{config.split_images_path}/test'
 
-    trainer = Trainer(train_path, test_path, config.batch_size)
+    trainer = Trainer(test_path, test_path, config.batch_size)
     trainer.get_data_loaders()
 
     model = network.ConvolutionalNetwork(trainer.num_of_classes)
@@ -135,6 +134,11 @@ def main(save_model_path=None):
 
     if save_model_path is not None:
         torch.save(model.state_dict(), save_model_path)
+        torch.save(model, '/home/peprycy/WasteClassifier/WasteClassifier/model/model')
+        random_input = torch.randn(10, 3, 224, 224, requires_grad=True)
+        torch.onnx.export(model, random_input, '/home/peprycy/WasteClassifier/WasteClassifier/model/model.onnx',
+                          verbose=True)
+        # torch.save('model.t7', model)
 
 
 if __name__ == '__main__':

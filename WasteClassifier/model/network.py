@@ -16,11 +16,12 @@ class ConvolutionalNetwork(torch.nn.Module):
         self.fc4 = torch.nn.Linear(84, 60)
         self.fc5 = torch.nn.Linear(60, self.num_classes)
 
-    # def add_classes(self, data):
-    #     print(data.classes)
-    #     self.classes = torch.nn.Parameter(torch.tensor(data.classes))
+    def load_pickle(self, pickle_path):
+        self.load_state_dict(torch.load(pickle_path))
+        self.eval()
 
     def forward(self, x):
+        # print(x.shape)
         x = F.relu(self.conv1(x))
         # print(x.shape)
         x = F.max_pool2d(x, 2, 2)
@@ -39,8 +40,11 @@ class ConvolutionalNetwork(torch.nn.Module):
         x = F.relu(self.fc3(x))
         x = F.relu(self.fc4(x))
         x = self.fc5(x)
-        # print(x)
         # x = F.log_softmax(x, dim=0)
-        # print('softmax')
         # print(x)
-        return torch.sigmoid(x)
+        # print(x.shape)
+        x = torch.sigmoid(x)
+        # print(x)
+        # print(x.shape)
+        return x
+
