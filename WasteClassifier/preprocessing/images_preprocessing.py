@@ -9,14 +9,17 @@ import shutil
 import pathlib
 import skimage
 import random
+import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore")
 
 
-def prepare_dataset(source_path: str, target_path: str, depth: int = 2):
+def prepare_dataset(source_path: str, target_path: str, depth: int = 2, hog_transformed: bool = True):
     target_path = pathlib.Path(target_path)
     source_path = pathlib.Path(source_path)
 
-    # prepare_directories(source_path, target_path)
-    # prepare_dirs_for_binary_models(target_path)
+    prepare_directories(source_path, target_path)
+    prepare_dirs_for_binary_models(target_path)
 
     if depth == 0:
         count = 0
@@ -36,11 +39,10 @@ def prepare_dataset(source_path: str, target_path: str, depth: int = 2):
 
         # first iterate over datasets split into train and test images
         for dataset in source_path.iterdir():
-            # iterate train / test
+            # iterate over labels in train / test
             for label_path in dataset.iterdir():
-                # iterate over labels in train and test like train|test / label
+                # iterate over every image in label directories
                 for file_name in pathlib.Path(label_path).iterdir():
-                    # iterate over every image in label directory
                     target_file_path = target_path / dataset.name / label_path.name / file_name.name
                     img = cv2.imread(str(file_name))
 
@@ -49,10 +51,16 @@ def prepare_dataset(source_path: str, target_path: str, depth: int = 2):
                         pathlib.Path(file_name).unlink()
                         continue
 
-                    img = convert_img_to_nn_input(img)
+                    img = convert_img_to_nn_input(img, hog_transformed, hsv_transformed=False)
 
-                    cv2.imwrite(str(target_file_path), img)
-                    save_imgs_to_binary_catalogs(img, target_file_path.parents[2], label_path.name, file_name.name)
+                    if hog_transformed:
+                        skimage.io.imsave(str(target_file_path), img)  # img.astype(np.uint8))
+                        # skimage.io.imsave(str(target_file_path), img.astype(np.uint8))
+                    else:
+                        cv2.imwrite(str(target_file_path), img)
+
+                    save_imgs_to_binary_catalogs(img, target_file_path.parents[2], label_path.name, file_name.name,
+                                                 hog_transformed)
                     count += 1
 
                 print(f'Extracting photos for {dataset.name} {label_path.name} done')
@@ -60,12 +68,15 @@ def prepare_dataset(source_path: str, target_path: str, depth: int = 2):
         balance_binary_datasets(target_path)
 
 
-def convert_img_to_nn_input(img):
+def convert_img_to_nn_input(img, hog_transformed, hsv_transformed):
     if img.shape != (512, 384, 3):
         img = resize_file(img)
 
-    img = rgb_to_hsv(img)
-    # img = hog_image(img)
+    if hsv_transformed:
+        img = rgb_to_hsv(img)
+
+    if hog_transformed:
+        img = transform_with_hog(img)
 
     return img
 
@@ -76,22 +87,14 @@ def rgb_to_hsv(img):
     return img
 
 
-# def hog_image(img):
-#     skimage_img = cv2_to_skimage(img)
-#     # features, hog = skimage.feature.hog(img, orientations=9, pixels_per_cell=(8, 8),
-#     #                               cells_per_block=(2, 2), visualize=True, multichannel=True)
-#     features = skimage.feature.hog(skimage_img, orientations=9, pixels_per_cell=(8, 8),
-#                                    cells_per_block=(2, 2), visualize=False, multichannel=True)
-#     # print(hog.shape)
-#     print('skimage hog')
-#     print(features.shape)
-#
-#     hog = cv2.HOGDescriptor()
-#     h = hog.compute(img)
-#     print('cv2 hog')
-#     print(h.shape)
-#
-#     return skimage_to_cv2(hog)
+def transform_with_hog(img):
+    # skimage_img = cv2_to_skimage(img)
+    # features, hog = skimage.feature.hog(img, orientations=9, pixels_per_cell=(8, 8),
+    #                               cells_per_block=(2, 2), visualize=True, multichannel=True)
+    fd, hog = skimage.feature.hog(img, orientations=9, pixels_per_cell=(8, 8),
+                                  cells_per_block=(2, 2), visualize=True, multichannel=True)
+
+    return hog
 
 
 def cv2_to_skimage(img):
@@ -112,6 +115,7 @@ def resize_file(img):
 
 def prepare_directories(src_dir, tgt_dir):
 
+    # cannot use one function to delete all files under directory like rm -rf
     if tgt_dir.is_dir() and len([x for x in tgt_dir.iterdir()]) != 0:
         shutil.rmtree(tgt_dir)
     elif tgt_dir.is_dir():
@@ -137,7 +141,7 @@ def prepare_dirs_for_binary_models(target_path):
         pathlib.Path(catalog_path, f'not_{label.name}').mkdir()
 
 
-def save_imgs_to_binary_catalogs(img, target_path, label, filename):
+def save_imgs_to_binary_catalogs(img, target_path, label, filename, use_skimage):
     # function distributes images to all_but_dirs - for x label: in all_but_{x} puts to catalog {x} and in all_but_{y}
     # puts to not_{y} catalog
     not_dirs = [path for path in target_path.iterdir()
@@ -149,12 +153,20 @@ def save_imgs_to_binary_catalogs(img, target_path, label, filename):
     for all_but_dir in not_dirs:
         not_dir = f'{all_but_dir}/not_{all_but_dir.name.split("_")[-1]}'
         not_dir_file_path = f'{not_dir}/{filename}'
-        cv2.imwrite(not_dir_file_path, img)
+        if use_skimage:
+            skimage.io.imsave(str(not_dir_file_path), img)#img.astype(np.uint8))
+            # skimage.io.imsave(str(not_dir_file_path), img.astype(np.uint8))
+        else:
+            cv2.imwrite(not_dir_file_path, img)
 
     for proper_dir in proper_dirs:
         label_dir = f'{proper_dir}/{proper_dir.name.split("_")[-1]}'
         file_path = f'{label_dir}/{filename}'
-        cv2.imwrite(file_path, img)
+        if use_skimage:
+            skimage.io.imsave(str(file_path), img)  # img.astype(np.uint8))
+            # skimage.io.imsave(str(file_path), img.astype(np.uint8))
+        else:
+            cv2.imwrite(file_path, img)
 
 
 def balance_binary_datasets(target_path):
@@ -185,27 +197,39 @@ def balance_binary_datasets(target_path):
 
 class DataManager:
 
-    def __init__(self, data_path, transform_type: str = 'test', batch_size: int = 10):
+    def __init__(self, data_path, transform_type: str = 'test', batch_size: int = 10, grayscale: bool = True):
         self.data_path = data_path
         self.batch_size = batch_size
+        self.grayscale = grayscale
         self.num_of_classes = None
         self.dataloader = None
         self.image_folder = None
+        if self.grayscale:
+            norm_1st = 0.485
+            norm_2nd = 0.229
+        else:
+            norm_1st = [0.485, 0.456, 0.406]
+            norm_2nd = [0.229, 0.224, 0.225]
 
         if transform_type == 'test':
-            self.transform = transforms.Compose([
-                                                transforms.CenterCrop((384, 512)),
-                                                transforms.ToTensor(),
-                                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-                                                ])
+            transforms_list = [
+                               transforms.CenterCrop((384, 512)),
+                               transforms.ToTensor(),
+                               transforms.Normalize(norm_1st, norm_2nd)
+                               ]
         else:
-            self.transform = transforms.Compose([
-                                                transforms.RandomRotation(10),
-                                                transforms.RandomHorizontalFlip(),
-                                                transforms.CenterCrop((384, 512)), #384, 512
-                                                transforms.ToTensor(),
-                                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-                                                ])
+            transforms_list = [
+                              transforms.RandomRotation(10),
+                              transforms.RandomHorizontalFlip(),
+                              transforms.CenterCrop((384, 512)),  # 384, 512
+                              transforms.ToTensor(),
+                              transforms.Normalize(norm_1st, norm_2nd)
+                              ]
+        if self.grayscale:
+            transforms_list.append(transforms.Grayscale())
+
+        self.transform = transforms.Compose(transforms_list)
+        # print(transforms_list)
 
     def return_dataset_and_loader(self, manual_seed: int = 42, return_loader: bool = True, shuffle: bool = True):
 
@@ -239,4 +263,4 @@ class DataManager:
 
 if __name__ == '__main__':
     # read_to_loader_n_photos('/home/peprycy/WasteClassifier/Data/TrashNet', 5)
-    prepare_dataset(config.SPLIT_IMAGES_PATH, config.PREPROCESSED_IMAGES_PATH, 2)
+    prepare_dataset(config.SPLIT_IMAGES_PATH, config.PREPROCESSED_IMAGES_PATH, 2, hog_transformed=True)

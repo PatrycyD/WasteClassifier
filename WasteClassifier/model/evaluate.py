@@ -26,8 +26,9 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
         '''
     }
 
-    def __init__(self, data_path, use_binary_models, transform_type: str = 'test', batch_size: int = 10):
-        super().__init__(data_path, transform_type, batch_size)
+    def __init__(self, data_path, use_binary_models, transform_type: str = 'test',
+                 batch_size: int = 10, grayscale: bool = True):
+        super().__init__(data_path, transform_type, batch_size, grayscale)
         self.use_binary_models = use_binary_models
         self.model = None
         self.model_plastic = None
@@ -38,35 +39,35 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
         self.all_models = None
         self.binary_order = None
 
-    def load_model(self, model, pickle_path):
+    def load_model(self, model, pickle_path, num_classes):
         if self.use_binary_models:
-            binary_order = ['cardboard', 'glass', 'metal', 'organic', 'plastic']
+            binary_order = config.classes
 
-            self.model_cardboard = ConvolutionalNetwork(1)
+            self.model_cardboard = ConvolutionalNetwork(1, config.channels)
             self.model_cardboard.load_pickle(config.model_cardboard_pickle_path)
             self.model_cardboard.eval()
 
-            self.model_glass = ConvolutionalNetwork(1)
+            self.model_glass = ConvolutionalNetwork(1, config.channels)
             self.model_glass.load_pickle(config.model_glass_pickle_path)
             self.model_glass.eval()
 
-            self.model_metal = ConvolutionalNetwork(1)
-            self.model_metal.load_pickle(config.model_metal_pickle_path)
-            self.model_metal.eval()
+            # self.model_metal = ConvolutionalNetwork(1, config.channels)
+            # self.model_metal.load_pickle(config.model_metal_pickle_path)
+            # self.model_metal.eval()
 
-            self.model_organic = ConvolutionalNetwork(1)
+            self.model_organic = ConvolutionalNetwork(1, config.channels)
             self.model_organic.load_pickle(config.model_organic_pickle_path)
             self.model_organic.eval()
 
-            self.model_plastic = ConvolutionalNetwork(1)
+            self.model_plastic = ConvolutionalNetwork(1, config.channels)
             self.model_plastic.load_pickle(config.model_plastic_pickle_path)
             self.model_plastic.eval()
 
-            self.all_models = [self.model_cardboard, self.model_glass, self.model_metal,
+            self.all_models = [self.model_cardboard, self.model_glass, #self.model_metal,
                                self.model_organic, self.model_plastic]
 
         else:
-            self.model = model
+            self.model = ConvolutionalNetwork(num_classes, config.channels)
             self.model.load_state_dict(torch.load(config.model_pickle_path))
             self.model.eval()
 
@@ -75,11 +76,15 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
 
     def forward(self, input_image):
 
-        input_image = torch.unsqueeze(input_image.type(torch.FloatTensor), 0)
-        input_image_wrapped = torch.autograd.Variable(input_image)
+        if self.batch_size == 1:
+            input_image = torch.unsqueeze(input_image.type(torch.FloatTensor), 0)
 
-        feed_forward_results = self.model(input_image_wrapped)
+        input_image_wrapped = Variable(input_image)
+
+        feed_forward_results = self.model.forward(input_image_wrapped)
+        # print(feed_forward_results)
         (prob, class_label) = torch.max(feed_forward_results, 1)
+        # print(class_label)
         return prob, class_label.data[0]
 
     def forward_binary(self, input_image):
@@ -97,13 +102,10 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
             predicted_class = probs.index(max(probs))
             probability = max(probs)
 
-            return predicted_class, probability
+            return predicted_class, probability. probs
 
         else:
             probs = [net(input_image_wrapped) for net in self.all_models]
-            # print(probs[0].shape[0])
-            # if probs[0].shape[0] != self.batch_size:
-            #     break
 
             # print(probs)
             # print(type(probs))
@@ -111,7 +113,7 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
             for idx in range(self.batch_size):
                 one_object_preds = torch.tensor([prob[idx].item() for prob in probs])
                 # print(torch.argmax(one_object_preds).reshape(-1, 1)
-                # print(one_object_preds.reshape(1, -1))
+                # print(one_object_preds)
                 predicted_classes = torch.cat((predicted_classes, torch.argmax(one_object_preds).reshape(-1, 1)), 1)
                 # print(predicted_classes)
             # predicted_classes = [torch.argmax(prob) for prob in probs]
@@ -121,13 +123,15 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
                 one_object_preds = torch.tensor([prob[idx].item() for prob in probs])
                 # print(torch.max(one_object_preds).reshape(1, -1))
                 probabilities = torch.cat((probabilities, torch.max(one_object_preds).reshape(1, -1)))
-                # print(probabilities)
-
+            # print(predicted_classes)
+            predicted_classes[predicted_classes == 1.] = 8.
+            predicted_classes[predicted_classes == 0.] = 1.
+            predicted_classes[predicted_classes == 8.] = 0.
             return predicted_classes, probabilities
 
-    def evaluate_dataset(self, metrics: List[str], display_photos: bool = False):
+    def evaluate_dataset(self, metrics: List[str], display_photos: bool = True):
         if self.dataloader is None and self.image_folder is None:
-            self.return_dataset_and_loader(shuffle=False)
+            self.return_dataset_and_loader(shuffle=True)
 
         if self.image_folder.classes != list(config.classes_dict.keys()):
             classes = list(config.classes_dict.keys())
@@ -140,13 +144,15 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
             missed = 0
             all_predictions = np.array([])
             for X, y in self.dataloader:
-                print(y)
+                # print(y)
                 # print(type(X))
                 # print(X.shape)
-                # predictions = self.model.forward(X) if self.use_binary_models else self.forward_binary(X)
                 if X.shape[0] != self.batch_size:
                     break
                 prediction, prob = self.forward(X) if not self.use_binary_models else self.forward_binary(X)
+                # print(prediction)
+                # print(prob)
+                # prediction, prob = self.forward_binary()
                 # print(prediction)
                 # print(predictions)
                 # predicted_class = torch.max(predictions, 1)[1] if self.use_bunary_models else XXXX
@@ -162,11 +168,13 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
 
                 if display_photos:
                     for idx in range(self.batch_size):
-                        # predicted = prediction[idx]  # tensor([2, 1, 0, 4, 3, 3])
+                        predicted_class_name = int(all_predictions[idx])
+                        predicted_class_name = config.classes[predicted_class_name]
+                        true_class_name = y[idx]
+                        true_class_name = config.classes[true_class_name]
                         im = make_grid(X[idx])
-
                         plt.figure(figsize=(15, 12))
-                        plt.title(f'Predicted: {all_predictions[idx]}, true: {y[idx]}')
+                        plt.title(f'Predicted: {predicted_class_name}, true: {true_class_name}')
                         plt.imshow(np.transpose(im.numpy(), (1, 2, 0)))
                         plt.show()
 
@@ -175,32 +183,6 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
             metric_value = round(metric_value.item(), 2)
             print(f'{metric} value is {metric_value}')
         # print(all_predictions)
-
-    # def predict_classes(self, display_photos: bool = True):
-    #     # print(summary(self.model, (3, 224, 224)))
-    #     batch_count = 0
-    #     for photo in os.listdir(self.data_path):
-    #         batch_count += 1
-    #         img = Image.open(f'{self.data_path}/{photo}')
-    #         img_tensor = self.transform(img).reshape(1, 3, 224, 224)
-    #         # print(img_tensor)
-    #         # print(type(img_tensor))
-    #         # print(img_tensor.shape)
-    #
-    #         with torch.no_grad():
-    #             prediction = self.model.forward(img_tensor)
-    #             # print(prediction)
-    #             prediction = torch.max(prediction, 1)[1]
-    #             prediction = config.classes_dict[prediction.item()]
-    #
-    #         if display_photos:
-    #             im = make_grid(img_tensor)
-    #
-    #             plt.figure(figsize=(15, 12))
-    #             plt.title(f'Predicted: {prediction}')
-    #             plt.imshow(np.transpose(im.numpy(), (1, 2, 0)))
-    #             # plt.imshow(im)
-    #             plt.show()
 
     @staticmethod
     def _map_labels(y_labels, batch_pred):
@@ -211,34 +193,22 @@ class Evaluator(DataManager):  # class Evaluator(Transformer):
 
 def main(saved_model_path, use_binary_models):
 
-    train_path = f'{config.split_images_path}/train'
-    test_path = f'{config.split_images_path}/test'
+    train_path = f'{config.PREPROCESSED_IMAGES_PATH}/train'
+    test_path = f'{config.PREPROCESSED_IMAGES_PATH}/test'
 
-    if not use_binary_models:
-        test_evaluator = Evaluator(test_path, False, 'test', config.batch_size)
-        num_classes = test_evaluator.get_number_of_classes()
-        test_evaluator.load_model(ConvolutionalNetwork(num_classes), saved_model_path)
-        test_evaluator.evaluate_dataset(['accuracy'])
+    test_evaluator = Evaluator(test_path, use_binary_models, 'test', config.batch_size, config.grayscale)
+    num_classes = test_evaluator.get_number_of_classes()
+    test_evaluator.load_model(ConvolutionalNetwork(num_classes, config.channels), saved_model_path, num_classes)
+    test_evaluator.evaluate_dataset(metrics=['accuracy'], display_photos=True)
 
-        train_evaluator = Evaluator(train_path, False, 'test', config.batch_size)
-        num_classes = train_evaluator.get_number_of_classes()
-        train_evaluator.load_model(ConvolutionalNetwork(num_classes), saved_model_path)
-        train_evaluator.evaluate_dataset(['accuracy'])
-
-    else:
-        test_evaluator = Evaluator(test_path, True, 'test', config.batch_size)
-        num_classes = test_evaluator.get_number_of_classes()
-        test_evaluator.load_model(ConvolutionalNetwork(num_classes), saved_model_path)
-        test_evaluator.evaluate_dataset(['accuracy'], True)
-
-        train_evaluator = Evaluator(train_path, True, 'test', config.batch_size)
-        num_classes = train_evaluator.get_number_of_classes()
-        train_evaluator.load_model(ConvolutionalNetwork(num_classes), saved_model_path)
-        train_evaluator.evaluate_dataset(['accuracy'])
+    train_evaluator = Evaluator(train_path, use_binary_models, 'test', config.batch_size, config.grayscale)
+    num_classes = train_evaluator.get_number_of_classes()
+    train_evaluator.load_model(ConvolutionalNetwork(num_classes, config.channels), saved_model_path, num_classes)
+    train_evaluator.evaluate_dataset(metrics=['accuracy'], display_photos=False)
 
 
 if __name__ == '__main__':
-    use_binary_models = True
+    use_binary_models = config.binary_train
     main(config.model_pickle_path, use_binary_models)
 #TODO algorytym o centralizacji i skalowania zdjec - znalezc prace do rozpoznawania znakow drogowych,
 # tam powinny byc informacje o tym jakie algorytmy sluza do przeskalowywana obrazow

@@ -4,9 +4,7 @@ import WasteClassifier.config as config
 from WasteClassifier.preprocessing.images_preprocessing import DataManager
 import os
 import cv2
-import skimage
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 class Trainer:
@@ -17,6 +15,8 @@ class Trainer:
             self.binary_train = binary_train
             self.train_path = f'{dataset_path}/train_all_but_{binary_train}'
             self.test_path = f'{dataset_path}/test_all_but_{binary_train}'
+            # print(self.train_path)
+            # print(self.test_path)
         else:
             self.binary_train = None
             self.train_path = f'{dataset_path}/train'
@@ -43,14 +43,16 @@ class Trainer:
 
     def get_data_loaders(self, data_sample: int = 0):
 
-        train_manager = DataManager(self.train_path, transform_type='train', batch_size=self.batch_size)
-        train_loader, train_data = train_manager.return_dataset_and_loader()
+        train_manager = DataManager(self.train_path, transform_type='train',
+                                    batch_size=self.batch_size, grayscale=config.grayscale)
+        train_loader, train_data = train_manager.return_dataset_and_loader(shuffle=True)
         if self.binary_train:
             self.num_of_classes = 1
         else:
             self.num_of_classes = train_manager.get_number_of_classes()
 
-        test_manager = DataManager(self.test_path, transform_type='test', batch_size=self.batch_size)
+        test_manager = DataManager(self.test_path, transform_type='test',
+                                   batch_size=self.batch_size, grayscale=config.grayscale)
         test_loader, test_data = test_manager.return_dataset_and_loader()
 
         self.train_data = train_data
@@ -60,67 +62,6 @@ class Trainer:
         self.classes = train_data.classes
 
         return train_data, test_data, train_loader, test_loader
-
-    @staticmethod
-    def convert_batch_to_hog(img):
-
-        # skimage_img = cv2_to_skimage(img)
-        # # features, hog = skimage.feature.hog(img, orientations=9, pixels_per_cell=(8, 8),
-        # #                               cells_per_block=(2, 2), visualize=True, multichannel=True)
-        # features = skimage.feature.hog(skimage_img, orientations=9, pixels_per_cell=(8, 8),
-        #                                cells_per_block=(2, 2), visualize=False, multichannel=True)
-        # # print(hog.shape)
-        # print('skimage hog')
-        # print(features.shape)
-        if len(img.shape) == 4:  # if batched
-            # img = img.reshape((img.shape[0], img.shape[2], img.shape[3], img.shape[1]))
-            img = img.numpy()
-        else:
-            # img = img.reshape((img.shape[2], img.shape[3], img.shape[1]))
-            img.numpy()
-
-        # print(type(img[0]))
-        # print(img[0].shape)
-        image = cv2.imread('/home/peprycy/WasteClassifier/Data/custom_images_resized/20220327_133310.jpg')
-        # print(type(image))
-        # print(image.shape)
-        winSize = (384, 512)
-        blockSize = (16, 16)
-        blockStride = (8, 8)
-        cellSize = (8, 8)
-        nbins = 9
-        derivAperture = 1
-        winSigma = 4.
-        histogramNormType = 0
-        L2HysThreshold = 2.0000000000000001e-01
-        gammaCorrection = 0
-        nlevels = 64
-        # hog = cv2.HOGDescriptor(winSize, blockSize, blockStride, cellSize, nbins, derivAperture, winSigma,
-        #                         histogramNormType, L2HysThreshold, gammaCorrection, nlevels)
-        hog = cv2.HOGDescriptor()
-        # compute(img[, winStride[, padding[, locations]]]) -> descriptors
-        winStride = (8, 8)
-        padding = (8, 8)
-        locations = ((10, 20),)
-        if len(img.shape) == 4:  # if batched
-            batch_hist = np.array([])
-            for x in img:
-                print(x.shape)
-                print(type(x))
-
-                # grayimg = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
-                # print(grayimg.shape)
-                # cv2.imshow('name', x)
-                hist = hog.compute(x) #, winStride, padding, locations)
-                batch_hist = np.append(batch_hist, hist)
-
-            hist = batch_hist
-
-        else:
-            hist = hog.compute(img, winStride, padding, locations)
-        print(type(hist))
-        print(hist.shape)
-        return hist
 
     def train(self, model, criterion, optimizer, epochs=config.epochs, count_time=False, verbose=False):
 
@@ -140,24 +81,48 @@ class Trainer:
             trn_corr = 0
             tst_corr = 0
 
+            stop_train_switch_file = f'{config.project_root_path}/WasteClassifier/model/stop_training_flag'
+            with open(stop_train_switch_file, 'r') as file:
+                stop_train_switch = file.read().strip('\n')
+
+            if stop_train_switch == '1':
+                print('Stop training flag trigerred')
+                with open(stop_train_switch_file, 'w') as file:
+                    file.write('0')
+                break
+
             for b, (X_train, y_train) in enumerate(self.train_loader):
 
                 if b == max_trn_batch:
                     break
-                self.convert_batch_to_hog(X_train)
+                if hog_transform:
+                    x_tr_features = self.compute_hog(cell_size_params[i], block_size_params[q], bins_params[r], x_train)
+                    x_ev_features = compute_hog(cell_size_params[i], block_size_params[q], bins_params[r], x_eval)
+
+                    x_tr = torch.from_numpy(x_tr_features).to(device)
+                    y_tr = torch.from_numpy(y_train.reshape(-1, 1))
+                    y_tr = y_tr.type(torch.LongTensor).to(device)
+
+                    x_ev = torch.from_numpy(x_ev_features).to(device)
+                    y_ev = torch.from_numpy(y_eval.reshape(-1, 1))
+                    y_ev = y_ev.type(torch.LongTensor).to(device)
                 b += 1
                 y_pred = model.forward(X_train)
-                y_pred = y_pred.reshape(y_pred.shape[0])
-                # print(y_pred.reshape(10))
+                # print(y_pred.shape)
+                if self.binary_train is not None:
+                    y_pred = y_pred.reshape(y_pred.shape[0])
+                    y_train = y_train.float()
+                # print(y_pred)
                 # print(y_pred.reshape(10).shape)
-                # print(y_train.float())
+                # print(y_train)
                 # print(y_train.shape)
-                y_train = y_train.float()
                 loss = criterion(y_pred, y_train)
                 # print(y_pred)
                 # print(torch.round(y_pred))
                 if not self.binary_train:
                     predicted = torch.max(y_pred, 1)[1]
+                    # print('predicted')
+                    # print(predicted)
                 else:
                     predicted = torch.round(y_pred)
                 # print('predicted')
@@ -188,10 +153,12 @@ class Trainer:
                     # Limit the number of batches
                     if b == max_tst_batch:
                         break
-                    y_test = y_test.float()
+
                     # Apply the model
                     y_val = model.forward(X_test)
-                    y_val = y_val.reshape(y_val.shape[0])
+                    if self.binary_train is not None:
+                        y_val = y_val.reshape(y_val.shape[0])
+                        y_test = y_test.float()
 
                     # Tally the number of correct predictions
                     if not self.binary_train:
@@ -212,11 +179,35 @@ class Trainer:
         return model
 
     @staticmethod
-    def hog_transformation(tensor_img):
-        hog = cv2.HOGDescriptor()
-        im = cv2.imread(sample)
-        h = hog.compute(im)
-        return h
+    def compute_hog(cell_size, block_size, nbins, imgs_gray):
+        """
+        Function computes HOG features for images data using parameters
+        Args:
+            cell_size (tuple):  number of pixels in a square cell in x and y direction (e.g. (4,4), (8,8))
+            block_size (tuple) : number of cells in a block in x and y direction (e.g., (1,1), (1,2))
+            nbins (tuple) : number of bins in a orientation histogram in x and y direction (e.g. 6, 9, 12)
+            imgs_gray (np.ndarray) : images with which to perform HOG feature extraction (dimensions (nr, width, height))
+        Returns:
+            hog_feats (np.ndarray) : array of shape H x imgs_gray.shape[0] where H is the size of the resulting HOG feature vector
+        """
+        hog = cv2.HOGDescriptor(_winSize=(imgs_gray.shape[2] // cell_size[1] * cell_size[1],
+                                          imgs_gray.shape[1] // cell_size[0] * cell_size[0]),
+                                _blockSize=(block_size[1] * cell_size[1],
+                                            block_size[0] * cell_size[0]),
+                                _blockStride=(cell_size[1], cell_size[0]),
+                                _cellSize=(cell_size[1], cell_size[0]),
+                                _nbins=nbins)
+        # winSize is the size of the image cropped to a multiple of the cell size
+
+        hog_example = hog.compute(np.squeeze(imgs_gray[0, :, :]).astype(np.uint8)).flatten().astype(np.float32)
+
+        hog_feats = np.zeros([imgs_gray.shape[0], hog_example.shape[0]])
+
+        for img_idx in range(imgs_gray.shape[0]):
+            hog_image = hog.compute(np.squeeze(imgs_gray[img_idx, :, :]).astype(np.uint8)).flatten().astype(np.float32)
+            hog_feats[img_idx, :] = hog_image
+
+        return hog_feats
 
 
 def main(save_model_path=None, binary_train=None):
@@ -226,8 +217,7 @@ def main(save_model_path=None, binary_train=None):
     trainer = Trainer(dataset_path, config.batch_size, binary_train)
     trainer.get_data_loaders()
 
-    model = network.ConvolutionalNetwork(trainer.num_of_classes)
-    # model.add_classes(trainer.train_data)
+    model = network.ConvolutionalNetwork(trainer.num_of_classes, config.channels)
 
     criterion = eval(config.loss_function) if not binary_train else eval(config.binary_loss_function)
     optimizer = eval(config.optimizer)
@@ -241,6 +231,10 @@ def main(save_model_path=None, binary_train=None):
 
 
 if __name__ == '__main__':
-    for label in config.classes:
-        main(config.model_pickle_path, label)
-    # main(config.model_pickle_path, 'plastic')
+    hog_transform = config.hog_transformation
+    binary_train = config.binary_train
+    if binary_train:
+        for label in config.classes:
+            main(config.model_pickle_path, label)
+    else:
+        main(config.model_pickle_path, None)
