@@ -1,5 +1,3 @@
-# from WasteClassifier.model.network import LeNet, ConvolutionalNetwork
-
 ROOT_PATH = '/home/peprycy/WasteClassifier/Data'
 TRANSHET_PATH = f'${ROOT_PATH}/TrashNet'
 TRASHNET_RESIZED_PATH = f"{TRANSHET_PATH}/dataset-resized"
@@ -13,7 +11,7 @@ TEST_PERCENT = 0.3
 PHOTO_WIDTH = 512
 PHOTO_HEIGHT = 384
 project_root_path = '/home/peprycy/WasteClassifier'
-epochs = 20
+epochs = 120
 learning_rate = 0.001
 optimizer = f'torch.optim.Adam(model.parameters(), lr={learning_rate})'
 # optimizer = f'torch.optim.SGD(model.parameters(), lr={learning_rate})'
@@ -22,6 +20,7 @@ loss_function = 'torch.nn.CrossEntropyLoss()'
 # loss_function = 'torch.nn.NLLLoss()' # tylko przy softmaxowej aktywacji
 binary_loss_function = 'torch.nn.BCELoss()'
 batch_size = 10
+model_root_path = f'{project_root_path}/WasteClassifier/model'
 model_pickle_path = f'{project_root_path}/WasteClassifier/model/model.pickle'
 model_plastic_pickle_path = f'{project_root_path}/WasteClassifier/model/model_plastic.pickle'
 model_glass_pickle_path = f'{project_root_path}/WasteClassifier/model/model_glass.pickle'
@@ -38,8 +37,14 @@ glass_classes = ['glass', 'not_glass']
 organic_classes = ['organic', 'not_organic']
 cardboard_classes = ['cardboard', 'not_cardboard']
 classes_dict = {0: 'cardboard', 1: 'glass', 2: 'metal', 3: 'organic', 4: 'plastic'}  # same here
-grayscale = False
-channels = 3
-binary_train = True
-network = 'ConvolutionalNetwork'
-hog_transformation = True
+grayscale = False  # used in DataLoader transform
+channels = 3  # used in cnn channels definition
+binary_train = False
+# architecture = 'boosted_lenet'
+architecture = 'inception'
+hog_transformation = False
+cell_size_params = (4, 4)  # ,(7,7), (8, 8),
+block_size_params = (1, 2)  # ,(2,2), (1, 1)
+bins_params = 8  # 6, 9
+hog_nn_input_params = 195072
+is_hsv = True
