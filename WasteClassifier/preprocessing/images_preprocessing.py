@@ -29,7 +29,7 @@ def prepare_dataset(source_path: str, target_path: str, depth: int = 2, hog_tran
             img = file_name
             img = resize_file(img)
             img = resize_file(file_name)
-            img = rgb_to_hsv(img)
+            img = bgr_to_hsv(img)
             # img = hog_image(img)
             count += 1
 
@@ -51,7 +51,7 @@ def prepare_dataset(source_path: str, target_path: str, depth: int = 2, hog_tran
                         pathlib.Path(file_name).unlink()
                         continue
 
-                    img = convert_img_to_nn_input(img, hog_transformed, hsv_transformed=False)
+                    img = convert_img_to_nn_input(img, hog_transformed, hsv_transformed=config.is_hsv)
 
                     if hog_transformed:
                         skimage.io.imsave(str(target_file_path), img)  # img.astype(np.uint8))
@@ -69,11 +69,11 @@ def prepare_dataset(source_path: str, target_path: str, depth: int = 2, hog_tran
 
 
 def convert_img_to_nn_input(img, hog_transformed, hsv_transformed):
-    if img.shape != (512, 384, 3):
-        img = resize_file(img)
+    # if img.shape != (512, 384, 3):
+    #     img = resize_file(img)
 
     if hsv_transformed:
-        img = rgb_to_hsv(img)
+        img = bgr_to_hsv(img)
 
     if hog_transformed:
         img = transform_with_hog(img)
@@ -81,7 +81,7 @@ def convert_img_to_nn_input(img, hog_transformed, hsv_transformed):
     return img
 
 
-def rgb_to_hsv(img):
+def bgr_to_hsv(img):
     # input is cv2 image
     img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     return img
@@ -197,7 +197,8 @@ def balance_binary_datasets(target_path):
 
 class DataManager:
 
-    def __init__(self, data_path, transform_type: str = 'test', batch_size: int = 10, grayscale: bool = True):
+    def __init__(self, data_path, cnn: 'string', transform_type: str = 'test',
+                 batch_size: int = 10, grayscale: bool = True):
         self.data_path = data_path
         self.batch_size = batch_size
         self.grayscale = grayscale
@@ -205,31 +206,39 @@ class DataManager:
         self.dataloader = None
         self.image_folder = None
         if self.grayscale:
-            norm_1st = 0.485
-            norm_2nd = 0.229
+            # norm_mean = 0.485
+            norm_mean = 0.3276
+            # norm_std = 0.229
+            norm_std = 0.1824
         else:
-            norm_1st = [0.485, 0.456, 0.406]
-            norm_2nd = [0.229, 0.224, 0.225]
+            # norm_mean = [0.485, 0.456, 0.406]
+            norm_mean = [0.2200, 0.0655, 0.0440]
+            # norm_std= [0.229, 0.224, 0.225]
+            norm_std = [0.1078, 0.0844, 0.0549]
+
+        nn_input_size = 299 if cnn == 'incpetion' else (384, 512)
 
         if transform_type == 'test':
             transforms_list = [
-                               transforms.CenterCrop((384, 512)),
+                               transforms.Resize(nn_input_size),
+                               transforms.CenterCrop(nn_input_size),
                                transforms.ToTensor(),
-                               transforms.Normalize(norm_1st, norm_2nd)
+                               transforms.Normalize(norm_mean, norm_std)
                                ]
         else:
             transforms_list = [
-                              transforms.RandomRotation(10),
+                              transforms.Resize(nn_input_size),
+                              transforms.RandomRotation(45),
                               transforms.RandomHorizontalFlip(),
-                              transforms.CenterCrop((384, 512)),  # 384, 512
+                              transforms.RandomVerticalFlip(),
+                              transforms.CenterCrop(nn_input_size),  # 384, 512
                               transforms.ToTensor(),
-                              transforms.Normalize(norm_1st, norm_2nd)
+                              transforms.Normalize(norm_mean, norm_std)
                               ]
         if self.grayscale:
             transforms_list.append(transforms.Grayscale())
 
         self.transform = transforms.Compose(transforms_list)
-        # print(transforms_list)
 
     def return_dataset_and_loader(self, manual_seed: int = 42, return_loader: bool = True, shuffle: bool = True):
 
@@ -263,4 +272,4 @@ class DataManager:
 
 if __name__ == '__main__':
     # read_to_loader_n_photos('/home/peprycy/WasteClassifier/Data/TrashNet', 5)
-    prepare_dataset(config.SPLIT_IMAGES_PATH, config.PREPROCESSED_IMAGES_PATH, 2, hog_transformed=True)
+    prepare_dataset(config.SPLIT_IMAGES_PATH, config.PREPROCESSED_IMAGES_PATH, 2, hog_transformed=False)
